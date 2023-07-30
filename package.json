@@ -1,0 +1,31 @@
+{
+  "name": "weblog-project-2",
+  "version": "1.0.0",
+  "description": "",
+  "main": "app.js",
+  "scripts": {
+    "start": "node app.js"
+  },
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "app-root-path": "^3.1.0",
+    "bcrypt": "^5.1.0",
+    "bcryptjs": "^2.4.3",
+    "body-parser": "^1.20.2",
+    "captchapng": "^0.0.1",
+    "cookie-parser": "^1.4.6",
+    "dotenv": "^16.3.1",
+    "express": "^4.18.2",
+    "express-fileupload": "^1.4.0",
+    "jsonwebtoken": "^9.0.1",
+    "mongoose": "^5.13.20",
+    "nanoid": "^3.3.6",
+    "node-fetch": "^2.6.12",
+    "nodemon": "^2.0.22",
+    "path": "^0.12.7",
+    "process": "^0.11.10",
+    "sharp": "^0.32.4",
+    "yup": "^1.2.0"
+  }
+}
