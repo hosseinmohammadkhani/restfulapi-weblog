@@ -11,7 +11,6 @@ module.exports.authenticated = (req , res , next) => {
         const token = authHeader.split(" ")[1]
         const decodedToken = jwt.verify(token , process.env.JWT_SECRET)
         if(!decodedToken) this.throwError("توکن نامعتبر" , 401 , null)
-        console.log(decodedToken);
         req.userId = decodedToken.user.userId
         next()
     } catch (err) {

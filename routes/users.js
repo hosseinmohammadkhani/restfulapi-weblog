@@ -2,9 +2,14 @@ const { Router } = require('express');
 const router = new Router()
 const userController = require('../controllers/userController.js');
 
-// @desc register handler
+
+// @desc send token to email
 // @route POST /users/register
-router.post("/register" , userController.createUser)
+router.post("/register" , userController.handleRegister)
+
+// @desc register handler
+// @route POST /users/register/:token
+router.post("/register/:token" , userController.createUser)
 
 // @desc login handler
 // @route POST /users/login

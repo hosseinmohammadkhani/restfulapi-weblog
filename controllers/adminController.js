@@ -4,6 +4,7 @@ const Message = require('../models/Message.js');
 const fs = require('fs');
 const sharp = require('sharp');
 const appRoot = require('app-root-path');
+const jwt = require('jsonwebtoken');
 const { nanoid } = require('nanoid');
 const { throwError } = require('../utils/helpers.js');
 
@@ -101,49 +102,116 @@ module.exports.deletePost = async(req , res , next) => {
     }    
 }
 
+module.exports.messagesPage = async(req , res) => {
+    const user = await User.findOne({ _id : req.userId })
+    
+    if(!user || req.params.id !== user._id) throwError("User not found" , 404 , null)
+
+    //finds messages by id in the message
+    //id in the message should be as same as logged-in user's id
+    const messages = await Message.find({ user : req.userId })
+
+    return res.status(200).json({ messages : messages })
+}
+
 module.exports.handleEditProfile = async(req , res , next) => {
     try {
         const { username , email } = req.body
+        let profilePhoto = req.files ? req.files.profilePhoto : {}
+        let fileName = `${await nanoid()}_${profilePhoto.name}`
+        fileName = fileName.replace(/\s+/g, '-').toLowerCase() //replacing space with dash
+        const uploadPath = `${appRoot}/public/uploads/profilePhotos/${fileName}`
+        
+        //finds user by id
         const user = await User.findOne({ _id : req.userId })
-        console.log(user);
-
+        
         const duplicatedEmail = await User.findOne({ email })
         const duplicatedUsername = await User.findOne({ username })
         
-        if(user.username === username){
-            if(user.email === email){
+        if(req.params.username !== user.username) throwError("Not found" , 404 , null)
+
+        if(profilePhoto.name){
+            if(profilePhoto.mimetype == "image/jpeg" || profilePhoto.mimetype == "image/png"){
+                if(profilePhoto.size > 8000000) throwError("حداکثر حجم : 8 مگابایت" , 422 , null)
+                if(user.profilePhoto == "") await sharp(profilePhoto.data).toFile(uploadPath , err => console.log(err))
+                else{
+
+                    //removes previous profile photo and replaces the new one
+                    fs.unlink(`${appRoot}/public/uploads/profilePhotos/${user.profilePhoto}` , async err => {
+                        if(err) console.log(err);
+                        await sharp(profilePhoto.data).toFile(uploadPath , err => console.log(err))
+                    })
+                }          
+                user.profilePhoto = fileName
                 await user.save()
-                return res.status(201).json({ message : "پروفایل تغییر کرد" })
             }
-            else{
-                if(duplicatedEmail) throwError("کاربر با این ایمیل موجود است" , 422 , null)
-                if(email.length < 6 || email.length > 255 || email === "") throwError("ایمیل حداقل 6 حداکثر 255" , 422 , null)
-                user.email = email
-                await user.save()
-                return res.status(201).json({ message : "پروفایل تغییر کرد" })
-            }
+            else throwError("فرمت فقط JPG یا PNG" , 422 , null)
         }
-        else{
-            if(duplicatedUsername) throwError("کاربر با این  نام کاربری موجود است" , 422 , null)
-            if(username.length < 6 || username.length > 255 || username === "") throwError("نام کاربری حداقل 6 حداکثر 255" , 422 , null)
-            user.username = username
-            if(user.email === email){
+
+        if(user.email === email){
+            if(user.username === username) return res.status(201).json({ message : "پروفایل با موفقیت تغییر یافت" })
+            else if(user.username !== username){
+                if(duplicatedUsername) throwError("نام کاربری قبلا ثبت شده است" , 422 , null)
+                if(username === "" || username.length < 6 || username.length > 255) throwError("نام کاربری غیرمجاز" , 422 , null)
+                
+                user.username = username
                 await user.save()
-                return res.status(201).json({ message : "پروفایل تغییر کرد" })
+                return res.status(201).json({ message : "پروفایل با موفقیت تغییر یافت" })
             }
-            else{
-                if(duplicatedEmail) throwError("کاربر با این ایمیل موجود است" , 422 , null)
-                if(email.length < 6 || email.length > 255 || email === "") throwError("ایمیل حداقل 6 حداکثر 255" , 422 , null)
-                user.email = email
-                await user.save()
-                return res.status(201).json({ message : "پروفایل تغییر کرد" })
-            }
+        }else if(user.email !== email){
+            if(duplicatedEmail) throwError("ایمیل قبلا ثبت شده است" , 422 , null)
+
+            const token = jwt.sign({ email : email , username : username } , process.env.JWT_SECRET , {expiresIn : "1h"})
+            const link = `http://localhost:5000/dashboard/change-email/${token}`
+            
+            //Send email
+            console.log(link);
+            
+            return res.status(200).json({ message : "لینک تغییر ایمیل ارسال شد" })
         }
     } catch (err) {
         next(err)
     }
 }
+module.exports.changeEmail = async(req , res , next) => {
+    let decodedToken;
+    try {
+        decodedToken = jwt.verify(req.params.token , process.env.JWT_SECRET)
+        if(!decodedToken) throwError("404 Not found" , 404 , null)
+    } 
+    catch (err) { 
+        console.log(err)
+        return res.status(500).json({ message : "Server error" })
+    }
 
+    try {
+
+        //finds user by id
+        const user = await User.findOne({ _id : req.userId })
+        if(decodedToken.username === user.username){
+            user.username = decodedToken.username
+            user.email = decodedToken.email
+            await user.save()
+            return res.status(201).json({ message : "ایمیل با موفقیت تغییر یافت" })
+        }else if(decodedToken.username !== user.username){
+            if(decodedToken.username === "" || decodedToken.username.length < 6 
+            || decodedToken.username.length > 255) throwError("نام کاربری غیرمجاز" , 422 , null)
+            
+            const duplicatedUsername = await User.findOne({ username : decodedToken.username })
+            if(duplicatedUsername) throwError("نام کاربری قبلا ثبت شده است" , 422 , null)
+            
+            user.username = decodedToken.username
+            user.email = decodedToken.email
+            await user.save()
+            return res.status(201).json({ message : "ایمیل با موفقیت تغییر یافت" })
+        }
+
+    } catch (err) {
+        next(err)
+        console.log(err);
+    }
+
+}
 
 
 

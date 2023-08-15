@@ -3,6 +3,9 @@ const bcrypt = require('bcryptjs');
 const { schema } = require('./secure/userValidation.js');
 
 const userSchema  = new mongoose.Schema({
+    profilePhoto : {
+        type : String
+    },
     username : {
         type : String,
         required : [true , "نام کاربری الزامی است"],
@@ -40,8 +43,8 @@ userSchema.pre("save" , function(next){
     //check if password has been changed or not
     if(!user.isModified("password")) return next()
 
-    const salt = process.env.SALT || 10
-    bcrypt.hash(user.password , salt , (err , hash) => {
+    
+    bcrypt.hash(user.password , 10 , (err , hash) => {
         if(err) return next(err)
         user.password = hash
         next()

@@ -16,8 +16,16 @@ router.put("/edit-post/:id" , authenticated ,  adminController.handleEditPost)
 // @route DELETE /dashboard/delete-post/:id
 router.delete("/delete-post/:id" , authenticated , adminController.deletePost)
 
+// @desc messages page
+// @route GET /dashboard/messages/:id
+router.get("/messages/:id" , authenticated , adminController.messagesPage)
+
 // @desc edit profile
-// @route PUT /dashboard/edit-profile/:id
-router.put("/edit-profile/:id" , authenticated , adminController.handleEditProfile)
+// @route PUT /dashboard/edit-profile/:username
+router.put("/edit-profile/:username" , authenticated , adminController.handleEditProfile)
+
+// @desc change-email 
+// @route GET /dashboard/change-email/:token
+router.get("/change-email/:token" , authenticated , adminController.changeEmail)
 
 module.exports = router

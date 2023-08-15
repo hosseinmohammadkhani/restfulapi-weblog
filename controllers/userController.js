@@ -4,18 +4,55 @@ const JWT = require('jsonwebtoken');
 const captchapng = require('captchapng');
 const bcrypt = require('bcryptjs');
 const { throwError } = require('../utils/helpers.js');
+const {nanoid} = require('nanoid');
+const appRoot = require('app-root-path');
+const sharp = require('sharp');
 
 let CAPTCHA_NUM
 
-module.exports.createUser = async(req , res) => {
+module.exports.handleRegister = async(req , res , next) => {
     try {
+        let token = JWT.sign({ email : req.body.email } , process.env.JWT_SECRET , { expiresIn : "1h" })
+        
+        //لینک زیر باید به ایمیل کاربر ارسال شود
+        let registerLink = `http://localhost:5000/users/register/${token}`
+        console.log(`لینک ثبت نام
+        اگر در حال حاضر در وبلاگ حساب کاربری دارید ، این پیام را نادیده بگیرید
+        لینک ثبت نام : ${registerLink}`);
+
+        return res.status(200).json({ message : "لینک تایید ثبت نام ارسال شد" })
+        
+    } catch (err) {
+        next(err)
+    }
+}
+
+module.exports.createUser = async(req , res , next) => {
+    let decodedToken;
+    try {
+        decodedToken = JWT.verify(req.params.token , process.env.JWT_SECRET)
+        if(!decodedToken) throwError("Invalid token" , 404 , null)
+    } catch (err) {
+       next(err) 
+    }
+
+    let profilePhoto = req.files ? req.files.profilePhoto : {}
+    let fileName = `${await nanoid()}_${profilePhoto.name}`
+    fileName = fileName.replace(/\s+/g, '-').toLowerCase() //replacing space with dash
+    const uploadPath = `${appRoot}/public/uploads/profilePhotos/${fileName}`
+
+    try {
+
+        req.body = {...req.body , profilePhoto}
         
         //object destructuring : picks up username , email , password from req.body object
         const { email , password } = req.body
-        let { username } = req.body
+        let username = req.body.username
         username = username.replace(/\s+/g, '-').toLowerCase() //replacing space with dash
 
         await User.userValidation(req.body)
+
+        if(email !== decodedToken.email) throwError("ایمیل نامعتبر" , 422 , null)
 
         //finds user by email or username
         const duplicatedEmail = await User.findOne({ email : email })
@@ -24,7 +61,20 @@ module.exports.createUser = async(req , res) => {
         if(duplicatedEmail) throwError("کاربر با این ایمیل موجود است" , 422 , null)
         if(duplicatedUsername) throwError("کاربر با این  نام کاربری موجود است" , 422 , null)
     
-        await User.create({ username , email , password })
+
+        //Profile photo
+        if(typeof profilePhoto.name == `undefined`){
+            await User.create({ username : username , email : email , password : password , profilePhoto : "" })
+            return res.status(201).json({ message : "کاربر با موفقیت ساخته شد" })
+        }
+            
+        if(profilePhoto.mimetype != "image/jpeg" && profilePhoto.mimetype != "image/png") throwError("فرمت فقط JPG یا PNG" , 422, null)
+
+        if(profilePhoto.size > 8000000) throwError("حداکثر حجم : 8 مگابایت" , 422 , null)
+
+        if(profilePhoto != {}) await sharp(profilePhoto.data).toFile(uploadPath , err => console.log(err))
+
+        await User.create({ username : username , email : email , password : password , profilePhoto : fileName })
         
         //201 : The request succeeded, and a new resource was created as a result.
         return res.status(201).json({ message : "کاربر با موفقیت ساخته شد" })
@@ -55,10 +105,8 @@ module.exports.handleLogin = async(req , res ,next) => {
                 process.env.JWT_SECRET , {expiresIn : "1h" })
             return res.status(200).json({ token , userId : user._id.toString() })
         }
-        else{
-            //422 status code : error in authentication
-            throwError("ایمیل یا کلمه ی عبور اشتباه است" , 422 , null)
-        }
+        else throwError("ایمیل یا کلمه ی عبور اشتباه است" , 422 , null)
+        
     } catch (err) {
         next(err)
         console.log(err);     
@@ -109,43 +157,7 @@ module.exports.handleResetPassword = async(req , res ,next) => {
     }
 }
 
-/*
-module.exports.showProfilePage = async(req , res) => {
-    console.log(req._parsedOriginalUrl.path);
-    const username = req._parsedOriginalUrl.path.substr(15)
-    
-    //finds the first thing related - finds user by username
-    const user = await User.findOne({ username : username })
-    res.render("./profile.ejs" , {
-        pageTitle : user.username,
-        username : user.username,
-        email : user.email,
-        date : user.createdAt,
-        convertToShamsi,
-    })
-}
 
-
-
-module.exports.sendMessagePage = async(req , res) => {
-
-    const username = req._parsedOriginalUrl.path.substr(15)
-
-    //finds user by username
-    const user = await User.findOne({ username : username })
-
-    res.render("./sendMessage.ejs" , {
-        pageTitle : "ارسال پیام به نویسنده",
-        path : "/users/message",
-        layout : "./layouts/navbar.ejs",
-        req,
-        message : req.flash("success_msg"),
-        error : req.flash("error"),
-        username : username
-    })
-    
-}
-*/
 module.exports.handleSendMessage = async(req , res , next) => {
     try {
         const { fullName , email , message } = req.body
