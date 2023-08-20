@@ -9,6 +9,7 @@ const userSchema  = new mongoose.Schema({
     username : {
         type : String,
         required : [true , "نام کاربری الزامی است"],
+        unique : true,
         minLength : [5 , "نام کاربری باید حداقل 5 کاراکتر باشد"],
         maxLength : [255 , "نام کاربری باید حداکثر 255 کاراکتر باشد"],
         trim : true
@@ -16,6 +17,7 @@ const userSchema  = new mongoose.Schema({
     email : {
         type : String,
         required : [true , "ایمیل الزامی است"],
+        unique : true,
         trim : true
     },
     password : {
